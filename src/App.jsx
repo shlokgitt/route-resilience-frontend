@@ -13,6 +13,22 @@ function criticalityColor(score) {
   return "#475569";
 }
 
+// Palette for distinct (purely decorative, no meaning) node colors
+const NODE_COLOR_PALETTE = [
+  "#f97316", "#22d3ee", "#a78bfa", "#facc15", "#fb7185",
+  "#34d399", "#60a5fa", "#f472b6", "#4ade80", "#fbbf24",
+  "#e879f9", "#38bdf8"
+];
+
+function nodeColor(nodeId) {
+  let hash = 0;
+  const idStr = String(nodeId);
+  for (let i = 0; i < idStr.length; i++) {
+    hash = (hash * 31 + idStr.charCodeAt(i)) >>> 0;
+  }
+  return NODE_COLOR_PALETTE[hash % NODE_COLOR_PALETTE.length];
+}
+
 // Component that listens for map clicks to place start/end points OR check weather
 function MapClickHandler({ onMapClick, disableMapClicks }) {
   const map = useMapEvents({
@@ -496,7 +512,7 @@ export default function App() {
               const reasonConfig = blockReasonOptions.find(r => r.value === blockReason);
 
               const color = isBlocked
-                ? (reasonConfig?.color || "#dc2626")
+                ? "#dc2626"
                 : isOnRoute
                 ? "#06b6d4"
                 : edge.occluded
@@ -548,6 +564,25 @@ export default function App() {
                     </span>
                   </Tooltip>
                 </Polyline>
+              );
+            })}
+
+            {/* Distinct-colored markers for every intersection/node */}
+            {graph.nodes.map((node) => {
+              if (node.id === endpoints.from || node.id === endpoints.to) return null;
+              return (
+                <CircleMarker
+                  key={`node-${node.id}`}
+                  center={[node.lat, node.lng]}
+                  radius={4}
+                  pathOptions={{
+                    color: "#0f172a",
+                    weight: 1,
+                    fillColor: nodeColor(node.id),
+                    fillOpacity: 0.9
+                  }}
+                  interactive={false}
+                />
               );
             })}
 
