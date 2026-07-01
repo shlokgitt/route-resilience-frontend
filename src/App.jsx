@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, Popup, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { fetchGraph, fetchNearest, fetchCriticality, fetchRoute } from "./api";
+import { fetchGraph, fetchNearest, fetchCriticality, fetchRoute, fetchWeather } from "./api";
 import "./App.css";
 
 const CITY_CENTER = [25.317, 82.973];
@@ -13,7 +13,7 @@ function criticalityColor(score) {
   return "#475569";
 }
 
-// Component that listens for map clicks to place start/end points
+// Component that listens for map clicks to place start/end points OR check weather
 function MapClickHandler({ onMapClick, disableMapClicks }) {
   const map = useMapEvents({
     click(e) {
@@ -39,6 +39,10 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [selectedBlockReason, setSelectedBlockReason] = useState("construction");
   const toastTimer = useRef(null);
+
+  // Weather feature state
+  const [weatherMode, setWeatherMode] = useState(false);
+  const [weatherPopup, setWeatherPopup] = useState(null); // { lat, lng, loading, data, error }
 
   const blockReasonOptions = [
     { value: "construction", label: "🚧 Construction", color: "#f59e0b" },
@@ -111,7 +115,7 @@ export default function App() {
 
     const next = new Set(blocked);
     const nextReasons = new Map(blockReasons);
-    
+
     for (const id of wayEdgeIds) {
       if (allCurrentlyBlocked) {
         next.delete(id);
@@ -127,7 +131,7 @@ export default function App() {
 
     const roadName = clicked?.roadName || wayKey;
     const reasonLabel = blockReasonOptions.find(r => r.value === selectedBlockReason)?.label || selectedBlockReason;
-    
+
     if (allCurrentlyBlocked) {
       showToast(`Unblocked: ${roadName}`, "rerouted");
     } else {
@@ -141,7 +145,25 @@ export default function App() {
     }
   }
 
+  // Fetch weather for a clicked point
+  async function handleWeatherCheck(lat, lng) {
+    setWeatherPopup({ lat, lng, loading: true, data: null, error: null });
+    try {
+      const data = await fetchWeather(lat, lng);
+      setWeatherPopup({ lat, lng, loading: false, data, error: null });
+    } catch (err) {
+      console.error("Weather fetch failed:", err);
+      setWeatherPopup({ lat, lng, loading: false, data: null, error: "Could not fetch weather for this point" });
+    }
+  }
+
   async function handleMapClick(lat, lng) {
+    // Weather mode intercepts clicks entirely
+    if (weatherMode) {
+      handleWeatherCheck(lat, lng);
+      return;
+    }
+
     try {
       const { node } = await fetchNearest(lat, lng);
       if (!node) return;
@@ -215,11 +237,13 @@ export default function App() {
   }
 
   const routeEdgeSet = new Set(route?.edges || []);
-const canBlockRoads = true; // Allow blocking roads anytime
+  const canBlockRoads = true; // Allow blocking roads anytime
 
   // Determine click hint text
   let hintText;
-  if (!endpoints.from) {
+  if (weatherMode) {
+    hintText = <><span className="hint-key">Click</span> anywhere on the map to check weather conditions</>;
+  } else if (!endpoints.from) {
     hintText = <><span className="hint-key">Click</span> anywhere on the map to set your start point</>;
   } else if (!endpoints.to) {
     hintText = <><span className="hint-key">Click</span> again to set your destination</>;
@@ -242,6 +266,20 @@ const canBlockRoads = true; // Allow blocking roads anytime
               <option value="astar">A*</option>
             </select>
           </label>
+          <button
+            className="btn-reset"
+            onClick={() => {
+              setWeatherMode((m) => !m);
+              setWeatherPopup(null);
+            }}
+            style={{
+              background: weatherMode ? "#0ea5e9" : undefined,
+              color: weatherMode ? "#fff" : undefined,
+              borderColor: weatherMode ? "#0ea5e9" : undefined
+            }}
+          >
+            {weatherMode ? "🌦️ Weather: ON" : "🌦️ Check Weather"}
+          </button>
           <button className="btn-reset" onClick={resetSimulation}>Reset</button>
         </div>
       </header>
@@ -254,24 +292,25 @@ const canBlockRoads = true; // Allow blocking roads anytime
               <li>Select start and end points from dropdowns above (or click on map).</li>
               <li>Route auto-computes when both points are selected.</li>
               <li>Choose a blockage reason below, then click any road to block it.</li>
+              <li>Toggle "Check Weather" and click anywhere to see live conditions.</li>
             </ol>
           </section>
 
           <section className="sidebar-section">
             <h2>Blockage Reason</h2>
-            <select 
+            <select
               value={selectedBlockReason}
               onChange={(e) => setSelectedBlockReason(e.target.value)}
-              style={{ 
-                width: '100%', 
-                padding: '8px 12px', 
-                borderRadius: 'var(--radius-sm)', 
-                border: '1px solid var(--border-subtle)', 
-                background: 'var(--bg-primary)', 
-                color: 'var(--text-primary)', 
-                fontFamily: 'var(--sans)', 
-                fontSize: '12px', 
-                cursor: 'pointer' 
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                fontFamily: 'var(--sans)',
+                fontSize: '12px',
+                cursor: 'pointer'
               }}
             >
               {blockReasonOptions.map(option => (
@@ -284,8 +323,8 @@ const canBlockRoads = true; // Allow blocking roads anytime
             <h2>Select Route Points</h2>
             <div style={{ marginBottom: '12px' }}>
               <label style={{ display: 'block', fontSize: '11px', fontWeight: '500', color: 'var(--text-muted)', marginBottom: '4px' }}>START POINT</label>
-              <select 
-                value={endpoints.from || ''} 
+              <select
+                value={endpoints.from || ''}
                 onChange={(e) => {
                   const nodeId = e.target.value;
                   if (nodeId) {
@@ -307,8 +346,8 @@ const canBlockRoads = true; // Allow blocking roads anytime
             </div>
             <div style={{ marginBottom: '12px' }}>
               <label style={{ display: 'block', fontSize: '11px', fontWeight: '500', color: 'var(--text-muted)', marginBottom: '4px' }}>END POINT</label>
-              <select 
-                value={endpoints.to || ''} 
+              <select
+                value={endpoints.to || ''}
                 onChange={(e) => {
                   const nodeId = e.target.value;
                   if (nodeId) {
@@ -403,11 +442,11 @@ const canBlockRoads = true; // Allow blocking roads anytime
                 );
               })}
             </ul>
-            
+
             {/* Manual block test button */}
             {route && route.reachable && route.edges.length > 0 && (
               <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)' }}>
-                <button 
+                <button
                   onClick={() => {
                     const firstRouteEdge = route.edges[0];
                     console.log("Manually blocking edge:", firstRouteEdge);
@@ -440,7 +479,10 @@ const canBlockRoads = true; // Allow blocking roads anytime
               attribution='&copy; OpenStreetMap contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <MapClickHandler onMapClick={handleMapClick} disableMapClicks={Boolean(endpoints.from && endpoints.to)} />
+            <MapClickHandler
+              onMapClick={handleMapClick}
+              disableMapClicks={!weatherMode && Boolean(endpoints.from && endpoints.to)}
+            />
 
             {/* Render all edges */}
             {graph.edges.map((edge) => {
@@ -477,6 +519,10 @@ const canBlockRoads = true; // Allow blocking roads anytime
                     click: (e) => {
                       e.originalEvent.stopPropagation();
                       e.originalEvent.preventDefault();
+                      if (weatherMode) {
+                        handleWeatherCheck(e.latlng.lat, e.latlng.lng);
+                        return;
+                      }
                       console.log("Clicked edge:", edge.id, "on route:", isOnRoute);
                       toggleBlock(edge.id);
                     },
@@ -504,30 +550,6 @@ const canBlockRoads = true; // Allow blocking roads anytime
                 </Polyline>
               );
             })}
-
-            {/* Animated route overlay — drawn on top with dashed flowing animation */}
-            {/* Temporarily disabled to fix click issues */}
-            {/* {route && route.reachable && route.edges.map((edgeId) => {
-              const edge = edgeById.get(edgeId);
-              if (!edge) return null;
-              const a = nodeById.get(edge.source);
-              const b = nodeById.get(edge.target);
-              if (!a || !b) return null;
-              return (
-                <Polyline
-                  key={`anim-${edgeId}`}
-                  positions={[[a.lat, a.lng], [b.lat, b.lng]]}
-                  pathOptions={{
-                    color: "#38bdf8",
-                    weight: 2,
-                    dashArray: "12 12",
-                    opacity: 0.4,
-                    className: "route-animated"
-                  }}
-                  interactive={false}
-                />
-              );
-            })} */}
 
             {/* Start marker */}
             {fromNode && (
@@ -591,6 +613,51 @@ const canBlockRoads = true; // Allow blocking roads anytime
                   </Tooltip>
                 </CircleMarker>
               </>
+            )}
+
+            {/* Weather popup at clicked point */}
+            {weatherPopup && (
+              <Popup
+                position={[weatherPopup.lat, weatherPopup.lng]}
+                eventHandlers={{ remove: () => setWeatherPopup(null) }}
+              >
+                <div style={{ fontFamily: "Inter, sans-serif", fontSize: 12, minWidth: 170 }}>
+                  {weatherPopup.loading && <span>Loading weather…</span>}
+                  {weatherPopup.error && <span style={{ color: "#dc2626" }}>{weatherPopup.error}</span>}
+                  {weatherPopup.data && (
+                    <>
+                      <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 13 }}>
+                        {weatherPopup.data.description}
+                      </div>
+                      <div style={{ display: "grid", gap: 3 }}>
+                        <div>🌡️ Temp: <strong>{weatherPopup.data.temperature}°C</strong></div>
+                        <div>💧 Precipitation: <strong>{weatherPopup.data.precipitation} mm</strong></div>
+                        <div>💦 Humidity: <strong>{weatherPopup.data.humidity}%</strong></div>
+                        <div>💨 Wind: <strong>{weatherPopup.data.windSpeed} km/h</strong></div>
+                      </div>
+                      <div
+                        style={{
+                          marginTop: 8,
+                          padding: "4px 8px",
+                          borderRadius: 6,
+                          background: `${weatherPopup.data.severity.color}22`,
+                          color: weatherPopup.data.severity.color,
+                          fontWeight: 700,
+                          textAlign: "center",
+                          fontSize: 11
+                        }}
+                      >
+                        {weatherPopup.data.severity.label}
+                      </div>
+                      {weatherPopup.data.next3HoursPrecipitation?.length > 0 && (
+                        <div style={{ marginTop: 8, fontSize: 10, color: "#94a3b8" }}>
+                          Next 3h precip: {weatherPopup.data.next3HoursPrecipitation.map(v => `${v}mm`).join(" · ")}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </Popup>
             )}
           </MapContainer>
 
