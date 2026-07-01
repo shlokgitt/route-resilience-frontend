@@ -37,3 +37,8 @@ export async function simulateBlockage(edgeIds) {
   if (!res.ok) throw new Error("Failed to simulate blockage");
   return res.json();
 }
+export async function fetchWeather(lat, lng) {
+  const res = await fetch(`${BASE_URL}/weather?lat=${lat}&lon=${lng}`);
+  if (!res.ok) throw new Error("Failed to fetch weather");
+  return res.json();
+}
