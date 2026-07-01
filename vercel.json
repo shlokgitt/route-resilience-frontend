@@ -1,5 +1,4 @@
 {
-<<<<<<< HEAD
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "devCommand": "npm run dev",
@@ -11,11 +10,4 @@
       "destination": "/index.html"
     }
   ]
-=======
-  "buildCommand": "npm install",
-  "outputDirectory": "",
-  "devCommand": "npm start",
-  "installCommand": "npm install",
-  "framework": null
->>>>>>> 81ced0bd95f49aa8ce92166cd44330c3e140e92b
 }
