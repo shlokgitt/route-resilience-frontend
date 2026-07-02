@@ -255,6 +255,12 @@ export default function App() {
   const routeEdgeSet = new Set(route?.edges || []);
   const canBlockRoads = true; // Allow blocking roads anytime
 
+  // Live stats for the status strip
+  const totalNodes = graph.nodes.length;
+  const totalEdges = graph.edges.length;
+  const blockedRoadCount = new Set([...blocked].map((id) => edgeById.get(id)?.wayId || id)).size;
+  const criticalRoadCount = criticality.filter((c) => c.criticality >= 75).length;
+
   // Determine click hint text
   let hintText;
   if (weatherMode) {
@@ -299,6 +305,42 @@ export default function App() {
           <button className="btn-reset" onClick={resetSimulation}>Reset</button>
         </div>
       </header>
+
+      <div className="stats-bar">
+        <div className="stat-item">
+          <span className="stat-dot" style={{ background: "var(--accent-cyan)" }} />
+          <span className="stat-value">{totalNodes.toLocaleString()}</span>
+          <span className="stat-label">nodes</span>
+        </div>
+        <div className="stat-divider" />
+        <div className="stat-item">
+          <span className="stat-dot" style={{ background: "var(--accent-blue)" }} />
+          <span className="stat-value">{totalEdges.toLocaleString()}</span>
+          <span className="stat-label">edges</span>
+        </div>
+        <div className="stat-divider" />
+        <div className="stat-item">
+          <span className="stat-dot" style={{ background: "var(--accent-red)" }} />
+          <span className="stat-value">{blockedRoadCount}</span>
+          <span className="stat-label">blocked</span>
+        </div>
+        <div className="stat-divider" />
+        <div className="stat-item">
+          <span className="stat-dot" style={{ background: "var(--accent-amber)" }} />
+          <span className="stat-value">{criticalRoadCount}</span>
+          <span className="stat-label">critical roads</span>
+        </div>
+        {route && route.reachable && (
+          <>
+            <div className="stat-divider" />
+            <div className="stat-item">
+              <span className="stat-dot" style={{ background: "var(--accent-green)" }} />
+              <span className="stat-value">{route.distance.toFixed(2)} km</span>
+              <span className="stat-label">active route</span>
+            </div>
+          </>
+        )}
+      </div>
 
       <div className="app-body">
         <aside className="sidebar">
