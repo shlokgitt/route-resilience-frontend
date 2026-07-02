@@ -125,6 +125,54 @@
   outline-offset: 2px;
 }
 
+/* ===== STATS BAR (signature element — live systems readout) ===== */
+.stats-bar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 9px 24px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  z-index: 9;
+  overflow-x: auto;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.stat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.stat-value {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.stat-label {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.stat-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--border-subtle);
+  flex-shrink: 0;
+}
+
 /* ===== BODY ===== */
 .app-body {
   flex: 1;
